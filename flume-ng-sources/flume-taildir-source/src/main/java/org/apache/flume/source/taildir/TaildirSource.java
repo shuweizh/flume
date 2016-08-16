@@ -86,6 +86,9 @@ public class TaildirSource extends AbstractSource implements
   private Long maxBackOffSleepInterval;
   private boolean fileHeader;
   private String fileHeaderKey;
+  private boolean multiline;
+  private String lineStartRegex;
+  private int bufferSize;
 
   @Override
   public synchronized void start() {
@@ -100,6 +103,9 @@ public class TaildirSource extends AbstractSource implements
           .cachePatternMatching(cachePatternMatching)
           .annotateFileName(fileHeader)
           .fileNameHeader(fileHeaderKey)
+          .multiline(multiline)
+          .lineStartRegex(lineStartRegex)
+          .bufferSize(bufferSize)
           .build();
     } catch (IOException e) {
       throw new FlumeException("Error instantiating ReliableTaildirEventReader", e);
@@ -184,6 +190,9 @@ public class TaildirSource extends AbstractSource implements
             DEFAULT_FILE_HEADER);
     fileHeaderKey = context.getString(FILENAME_HEADER_KEY,
             DEFAULT_FILENAME_HEADER_KEY);
+    multiline = context.getBoolean(MULTILINE, DEFAULT_MULTILINE);
+    lineStartRegex = context.getString(LINE_START_REGEX, DEFAULT_LINE_START_REGEX);
+    bufferSize = context.getInteger(BUFFER_SIZE, DEFAULT_BUFFER_SIZE);
 
     if (sourceCounter == null) {
       sourceCounter = new SourceCounter(getName());
