@@ -79,10 +79,23 @@ public class TestTaildirSource {
 
   @After
   public void tearDown() {
-    for (File f : tmpDir.listFiles()) {
-      f.delete();
-    }
+    deleteFiles(tmpDir);
     tmpDir.delete();
+  }
+
+  /**
+   * Helper method to recursively clean up testing directory
+   * @param directory the directory to clean up
+   */
+  private void deleteFiles(File directory) {
+    for (File f : directory.listFiles()) {
+      if (f.isDirectory()) {
+        deleteFiles(f);
+        f.delete();
+      } else {
+        f.delete();
+      }
+    }
   }
 
   @Test
@@ -128,6 +141,78 @@ public class TestTaildirSource {
     assertTrue(out.contains("b.log"));
     assertTrue(out.contains("c.log.yyyy-MM-01"));
     assertTrue(out.contains("c.log.yyyy-MM-02"));
+  }
+
+  /**
+   * Test wildcards in filegroup directory name.
+   * Glob patterns reference to {@link java.nio.file.FileSystem#getPathMatcher})
+   * @throws IOException
+   */
+  @Test
+  public void testWildcardsDirFiltering() throws IOException {
+    File f1 = createFile("fg1/dir1/subdir/file1.txt");
+    File f2 = createFile("fg1/dir2/subdir/file2.txt");
+    File f3 = createFile("fg1/dir3/file3.txt");
+    File f4 = createFile("fg2/dir4/file4.txt");
+    File f5 = createFile("fg2/dir5/file5.txt");
+    File f6 = createFile("fg2/dir66/file66.txt");
+    File f7 = createFile("fg3/dir7/file7.txt");
+    File f8 = createFile("fg3/dir8/file8.txt");
+    File f9 = createFile("fg3/dir9/file9.txt");
+    File f10 = createFile("fg4/dir10/file10.txt");
+    File f11 = createFile("fg4/dir11/file11.txt");
+    File f12 = createFile("fg4/dir12/file12.txt");
+    File f13 = createFile("fg5/dir13/file13.txt");
+    File f14 = createFile("fg5/dir14/file14.txt");
+    File f15 = createFile("fg5/dir15/subdir15/file15.txt");
+
+    Context context = new Context();
+    context.put(POSITION_FILE, posFilePath);
+    context.put(FILE_GROUPS, "fg1 fg2 fg3 fg4 fg5");
+    context.put(FILE_GROUPS_PREFIX + "fg1", tmpDir.getAbsolutePath() + "/fg1/*/subdir/file.*");
+    context.put(FILE_GROUPS_PREFIX + "fg2", tmpDir.getAbsolutePath() + "/fg2/dir?/file.*");
+    context.put(FILE_GROUPS_PREFIX + "fg3", tmpDir.getAbsolutePath() + "/fg3/dir[78]/file.*");
+    context.put(FILE_GROUPS_PREFIX + "fg4", tmpDir.getAbsolutePath() + "/fg4/dir{10,12}/file.*");
+    context.put(FILE_GROUPS_PREFIX + "fg5", tmpDir.getAbsolutePath() + "/fg5/**/file.*");
+
+    Configurables.configure(source, context);
+    source.start();
+    source.process();
+    Transaction txn = channel.getTransaction();
+    txn.begin();
+    List<String> out = Lists.newArrayList();
+    for (int i = 0; i < 15; i++) {
+      Event e = channel.take();
+      if (e != null) {
+        out.add(TestTaildirEventReader.bodyAsString(e));
+      }
+    }
+    txn.commit();
+    txn.close();
+
+    assertEquals(11, out.size());
+    assertTrue(out.contains(f1.getAbsolutePath()));
+    assertTrue(out.contains(f2.getAbsolutePath()));
+    assertFalse(out.contains(f3.getAbsolutePath()));
+    assertTrue(out.contains(f4.getAbsolutePath()));
+    assertTrue(out.contains(f5.getAbsolutePath()));
+    assertFalse(out.contains(f6.getAbsolutePath()));
+    assertTrue(out.contains(f7.getAbsolutePath()));
+    assertTrue(out.contains(f8.getAbsolutePath()));
+    assertFalse(out.contains(f9.getAbsolutePath()));
+    assertTrue(out.contains(f10.getAbsolutePath()));
+    assertFalse(out.contains(f11.getAbsolutePath()));
+    assertTrue(out.contains(f12.getAbsolutePath()));
+    assertTrue(out.contains(f13.getAbsolutePath()));
+    assertTrue(out.contains(f14.getAbsolutePath()));
+    assertTrue(out.contains(f15.getAbsolutePath()));
+  }
+
+  private File createFile(String subPath) throws IOException {
+    File file = new File(tmpDir, subPath);
+    Files.createParentDirs(file);
+    Files.write(file.getAbsolutePath() + "\n", file, Charsets.UTF_8);
+    return file;
   }
 
   @Test
@@ -316,4 +401,5 @@ public class TestTaildirSource {
     assertEquals(f1.getAbsolutePath(),
             e.getHeaders().get("path"));
   }
+
 }

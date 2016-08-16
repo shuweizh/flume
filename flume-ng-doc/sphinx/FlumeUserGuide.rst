@@ -1121,6 +1121,7 @@ Property Name                       Default                        Description
 **type**                            --                             The component type name, needs to be ``TAILDIR``.
 **filegroups**                      --                             Space-separated list of file groups. Each file group indicates a set of files to be tailed.
 **filegroups.<filegroupName>**      --                             Absolute path of the file group. Regular expression (and not file system patterns) can be used for filename only.
+                                                                   Wildcards(see: -> link to `getPathMatcher(String syntaxAndPattern) <https://docs.oracle.com/javase/7/docs/api/java/nio/file/FileSystem.html#getPathMatcher(java.lang.String)>`_) are allowed in directory name.
 positionFile                        ~/.flume/taildir_position.json File in JSON format to record the inode, the absolute path and the last position of each tailing file.
 headers.<filegroupName>.<headerKey> --                             Header value which is the set with header key. Multiple headers can be specified for one file group.
 byteOffsetHeader                    false                          Whether to add the byte offset of a tailed line to a header called 'byteoffset'.
@@ -1133,6 +1134,7 @@ maxBackoffSleep                     5000                           The max time 
 cachePatternMatching                true                           Listing directories and applying the filename regex pattern may be time consuming for directories
                                                                    containing thousands of files. Caching the list of matching files can improve performance.
                                                                    The order in which files are consumed will also be cached.
+                                                                   CachePatternMatching will be overwritten to false when there are globs in the filegroup's directory name.
                                                                    Requires that the file system keeps track of modification times with at least a 1-second granularity.
 fileHeader                          false                          Whether to add a header storing the absolute path filename.
 fileHeaderKey                       file                           Header key to use when appending absolute path filename to event header.
@@ -1150,7 +1152,7 @@ Example for agent named a1:
   a1.sources.r1.filegroups = f1 f2
   a1.sources.r1.filegroups.f1 = /var/log/test1/example.log
   a1.sources.r1.headers.f1.headerKey1 = value1
-  a1.sources.r1.filegroups.f2 = /var/log/test2/.*log.*
+  a1.sources.r1.filegroups.f2 = /var/*/test2/.*log.*
   a1.sources.r1.headers.f2.headerKey1 = value2
   a1.sources.r1.headers.f2.headerKey2 = value2-2
   a1.sources.r1.fileHeader = true

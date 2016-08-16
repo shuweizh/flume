@@ -19,6 +19,7 @@
 
 package org.apache.flume.source.taildir;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.flume.annotations.InterfaceAudience;
@@ -28,12 +29,16 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.PathMatcher;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.FileVisitResult;
+import java.nio.file.FileVisitor;
+import java.nio.file.SimpleFileVisitor;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -78,8 +83,6 @@ public class TaildirMatcher {
 
   // directory monitored for changes
   private final File parentDir;
-  // cached instance for filtering files based on filePattern
-  private final DirectoryStream.Filter<Path> fileFilter;
 
   // system time in milliseconds, stores the last modification time of the
   // parent directory seen by the last check, rounded to seconds
@@ -105,8 +108,7 @@ public class TaildirMatcher {
    * An instance of this class is created for each fileGroup
    *
    * @param fileGroup arbitrary name of the group given by the config
-   * @param filePattern parent directory plus regex pattern. No wildcards are allowed in directory
-   *                    name
+   * @param filePattern parent directory plus regex pattern. Wildcards are allowed in directory name
    * @param cachePatternMatching default true, recommended in every setup especially with huge
    *                             parent directories. Don't set when local system clock is not used
    *                             for stamping mtime (eg: remote filesystems)
@@ -116,20 +118,21 @@ public class TaildirMatcher {
     // store whatever came from configuration
     this.fileGroup = fileGroup;
     this.filePattern = filePattern;
-    this.cachePatternMatching = cachePatternMatching;
 
     // calculate final members
     File f = new File(filePattern);
-    this.parentDir = f.getParentFile();
-    String regex = f.getName();
-    final PathMatcher matcher = FS.getPathMatcher("regex:" + regex);
-    this.fileFilter = new DirectoryStream.Filter<Path>() {
-      @Override
-      public boolean accept(Path entry) throws IOException {
-        return matcher.matches(entry.getFileName()) && !Files.isDirectory(entry);
-      }
-    };
+    String parentPath = trimPathBeforeFirstWildcard(f.getParentFile().toString());
 
+    // Config cachePatternMatching will be overwritten to false when there are globs in the
+    // filegroup's directory name.
+    if (cachePatternMatching && !parentPath.equals(f.getParentFile().toString())) {
+      logger.info("Config cachePatternMatching is forced to be false when fileGroup has globs " +
+              "in directory name.");
+      this.cachePatternMatching = false;
+    } else {
+      this.cachePatternMatching = cachePatternMatching;
+    }
+    this.parentDir = new File(parentPath);
     // sanity check
     Preconditions.checkState(parentDir.exists(),
         "Directory does not exist: " + parentDir.getAbsolutePath());
@@ -145,13 +148,7 @@ public class TaildirMatcher {
    * return the value stored in {@linkplain #lastMatchedFiles}.
    * Parentdir is allowed to be a symbolic link.
    * <p></p>
-   * Files returned by this call are weakly consistent (see {@link DirectoryStream}).
-   * It does not freeze the directory while iterating,
-   * so it may (or may not) reflect updates to the directory that occur during the call,
-   * In which case next call
-   * will return those files (as mtime is increasing it won't hit cache but trigger recalculation).
-   * It is guaranteed that invocation reflects every change which was observable at the time of
-   * invocation.
+   * Files returned by this call is a visitor of each file in a file tree (see {@link FileVisitor}).
    * <p></p>
    * Matching file list recalculation is triggered when caching was turned off or
    * if mtime is greater than the previously seen mtime
@@ -204,31 +201,74 @@ public class TaildirMatcher {
 
   /**
    * Provides the actual files within the parentDir which
-   * files are matching the regex pattern. Each invocation uses {@link DirectoryStream}
+   * files are matching the regex pattern. Each invocation uses {@link FileVisitor}
    * to identify matching files.
    *
-   * Files returned by this call are weakly consistent (see {@link DirectoryStream}).
-   * It does not freeze the directory while iterating, so it may (or may not) reflect updates
-   * to the directory that occur during the call. In which case next call will return those files.
+   * Files returned by this call is a visitor of each file in a file tree (see {@link FileVisitor}).
    *
    * @return List of files matching the pattern unsorted. No recursion. No directories.
    * If nothing matches then returns an empty list. If I/O issue occurred then returns the list
    * collected to the point when exception was thrown.
    *
-   * @see DirectoryStream
-   * @see DirectoryStream.Filter
+   * @see FileVisitor
    */
   private List<File> getMatchingFilesNoCache() {
-    List<File> result = Lists.newArrayList();
-    try (DirectoryStream<Path> stream = Files.newDirectoryStream(parentDir.toPath(), fileFilter)) {
-      for (Path entry : stream) {
-        result.add(entry.toFile());
-      }
+    final List<File> result = Lists.newArrayList();
+    try {
+      Files.walkFileTree(Paths.get(parentDir.toString()), new SimpleFileVisitor<Path>() {
+        PathMatcher dirMatcher = FS.getPathMatcher("glob:" + (new File(filePattern).getParent()));
+        PathMatcher fileNameMatcher = FS.getPathMatcher("regex:" +
+                (new File(filePattern).getName()));
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+          if (dirMatcher.matches(file.getParent()) && fileNameMatcher.matches(file.getFileName())) {
+            result.add(file.toFile());
+          }
+          return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFileFailed(Path file, IOException exc) {
+          return FileVisitResult.CONTINUE;
+        }
+      });
     } catch (IOException e) {
       logger.error("I/O exception occurred while listing parent directory. " +
                    "Files already matched will be returned. " + parentDir.toPath(), e);
+    } catch (IllegalArgumentException e) {
+      logger.error("Filegroup Pattern (" + getFileGroup() + "=" + filePattern + ") Is Illegal.", e);
+
     }
     return result;
+  }
+
+  /**
+   * Trim the parent directory and return the top-level directory before the first wildcard appears.
+   * @param path parent directory. Wildcards are allowed in parent directory name.
+   * @return Top-level directory before the first wildcard appears.
+   */
+  @VisibleForTesting
+  String trimPathBeforeFirstWildcard(String path) {
+    int i = 0;
+    int index = path.length();
+    boolean findWildCards = false;
+    final String WILDCARDS = "*?[{";
+    while (i < path.length()) {
+      if (WILDCARDS.indexOf(path.charAt(i)) != -1) {
+        if ((i == 0) || (i >= 1 && path.charAt(i - 1) != '\\')) {
+          findWildCards = true;
+          break;
+        }
+      }
+      i++;
+    }
+    if (findWildCards) {
+      index = path.substring(0, i).lastIndexOf(File.separator);
+      if (index <= 0) {
+        return File.separator;
+      }
+    }
+    return path.substring(0, index);
   }
 
   /**
@@ -281,6 +321,10 @@ public class TaildirMatcher {
 
   public String getFileGroup() {
     return fileGroup;
+  }
+
+  public boolean getCachePatternMatching() {
+    return cachePatternMatching;
   }
 
 }
