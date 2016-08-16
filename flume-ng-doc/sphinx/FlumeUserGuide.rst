@@ -1138,6 +1138,9 @@ cachePatternMatching                true                           Listing direc
                                                                    Requires that the file system keeps track of modification times with at least a 1-second granularity.
 fileHeader                          false                          Whether to add a header storing the absolute path filename.
 fileHeaderKey                       file                           Header key to use when appending absolute path filename to event header.
+multiline                           false                          Whether to support joining of multi-line messages from a file into a single flume event.
+lineStartRegex                      ""                             LINE_REGEX_START should be a regexp which matches the start of an event consisting of multi lines.
+bufferSize                          8192                           Buffer size used for reading. If multiline is set to true, the value should be the max bytes of multi lines.
 =================================== ============================== ===================================================
 
 Example for agent named a1:

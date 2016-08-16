@@ -46,6 +46,8 @@ import static org.apache.flume.source.taildir.TaildirSourceConfigurationConstant
 import static org.apache.flume.source.taildir.TaildirSourceConfigurationConstants.POSITION_FILE;
 import static org.apache.flume.source.taildir.TaildirSourceConfigurationConstants.FILENAME_HEADER;
 import static org.apache.flume.source.taildir.TaildirSourceConfigurationConstants.FILENAME_HEADER_KEY;
+import static org.apache.flume.source.taildir.TaildirSourceConfigurationConstants.MULTILINE;
+import static org.apache.flume.source.taildir.TaildirSourceConfigurationConstants.LINE_START_REGEX;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -402,4 +404,49 @@ public class TestTaildirSource {
             e.getHeaders().get("path"));
   }
 
+  @Test
+  public void testMultilineSetToTrue() throws IOException {
+    File f1 = new File(tmpDir, "a.log");
+    File f2 = new File(tmpDir, "b.log");
+    File f3 = new File(tmpDir, "c.log");
+    Files.write("a.log\n\n2016-05-17 00:12:06,713 [Thread-7] TRACE \n f1 \n 2016-05-18 00:12:06,713 [Thread-7] TRACE \n" +
+            " f1 \n" +
+            " f1f1", f1, Charsets.UTF_8);
+
+    Files.write(" 2016-05-19 00:12:06,713 [Thread-7] TRACE \n f2 \n f2f2\n2016-05-20 00:12:06,713 [Thread-7] TRACE\n ", f2, Charsets.UTF_8);
+    Files.write("c.log\n", f3, Charsets.UTF_8);
+
+    Context context = new Context();
+    context.put(POSITION_FILE, posFilePath);
+    context.put(FILE_GROUPS, "f1");
+    // Tail a.log and b.log
+    context.put(FILE_GROUPS_PREFIX + "f1", tmpDir.getAbsolutePath() + "/[abc].log");
+    context.put(MULTILINE, "true");
+    context.put(LINE_START_REGEX, "\\s?\\d\\d\\d\\d-\\d\\d-\\d\\d\\s\\d\\d:\\d\\d:\\d\\d,\\d\\d\\d");
+
+    Configurables.configure(source, context);
+    source.start();
+    source.process();
+    Transaction txn = channel.getTransaction();
+    txn.begin();
+    List<String> out = Lists.newArrayList();
+    for (int i = 0; i < 3; i++) {
+      Event e = channel.take();
+      if (e != null) {
+        out.add(TestTaildirEventReader.bodyAsString(e));
+      }
+    }
+    txn.commit();
+    txn.close();
+
+    assertEquals(3, out.size());
+
+    assertTrue(out.get(0).equals("a.log\n"));
+    assertTrue(out.get(1).equals("\n2016-05-17 00:12:06,713 [Thread-7] TRACE \n" +
+            " f1 \n"));
+
+    assertTrue(out.get(2).equals(" 2016-05-19 00:12:06,713 [Thread-7] TRACE \n" +
+            " f2 \n" +
+            " f2f2"));
+  }
 }

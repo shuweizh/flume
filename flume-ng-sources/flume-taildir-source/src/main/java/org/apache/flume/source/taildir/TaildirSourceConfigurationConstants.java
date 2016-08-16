@@ -63,4 +63,19 @@ public class TaildirSourceConfigurationConstants {
   /** Whether to include absolute path filename in a header. */
   public static final String FILENAME_HEADER = "fileHeader";
   public static final boolean DEFAULT_FILE_HEADER = false;
+
+  /** Whether to support joining of multi-line messages from a file into a single flume event. */
+  public static final String MULTILINE = "multiline";
+  public static final boolean DEFAULT_MULTILINE = false;
+
+  /** LINE_REGEX_START should be a regexp which matches the start of an event consisting of multi
+   * lines.
+   */
+  public static final String LINE_START_REGEX = "lineStartRegex";
+  public static final String DEFAULT_LINE_START_REGEX = "";
+
+  /** Buffer size used for reading. If multiline is set to true, the value should be the max bytes
+   * of multi lines. */
+  public static final String BUFFER_SIZE = "bufferSize";
+  public static final int DEFAULT_BUFFER_SIZE = 8192;
 }

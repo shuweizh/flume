@@ -30,6 +30,9 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.apache.flume.source.taildir.TaildirSourceConfigurationConstants.BYTE_OFFSET_HEADER_KEY;
 
@@ -39,7 +42,6 @@ public class TailFile {
   private static final byte BYTE_NL = (byte) 10;
   private static final byte BYTE_CR = (byte) 13;
 
-  private static final int BUFFER_SIZE = 8192;
   private static final int NEED_READING = -1;
 
   private RandomAccessFile raf;
@@ -53,6 +55,9 @@ public class TailFile {
   private byte[] oldBuffer;
   private int bufferPos;
   private long lineReadPos;
+  private boolean multiline;
+  private String lineStartRegex;
+  private int bufferSize;
 
   public TailFile(File file, Map<String, String> headers, long inode, long pos)
       throws IOException {
@@ -67,6 +72,7 @@ public class TailFile {
     this.lastUpdated = 0L;
     this.needTail = true;
     this.headers = headers;
+    setPos(pos);
     this.oldBuffer = new byte[0];
     this.bufferPos = NEED_READING;
   }
@@ -103,6 +109,10 @@ public class TailFile {
     return lineReadPos;
   }
 
+  public String getLineStartRegex() {
+    return lineStartRegex;
+  }
+
   public void setPos(long pos) {
     this.pos = pos;
   }
@@ -117,6 +127,18 @@ public class TailFile {
 
   public void setLineReadPos(long lineReadPos) {
     this.lineReadPos = lineReadPos;
+  }
+
+  public void setMultiline(boolean multiline) {
+    this.multiline = multiline;
+  }
+
+  public void setLineStartRegex(String lineStartRegex) {
+    this.lineStartRegex = lineStartRegex;
+  }
+
+  public void setBufferSize(int bufferSize) {
+    this.bufferSize = bufferSize;
   }
 
   public boolean updatePos(String path, long inode, long pos) throws IOException {
@@ -139,12 +161,42 @@ public class TailFile {
   public List<Event> readEvents(int numEvents, boolean backoffWithoutNL,
       boolean addByteOffset) throws IOException {
     List<Event> events = Lists.newLinkedList();
-    for (int i = 0; i < numEvents; i++) {
-      Event event = readEvent(backoffWithoutNL, addByteOffset);
-      if (event == null) {
-        break;
+    int i = 0;
+    if (!this.multiline) {
+      for (i = 0; i < numEvents; i++) {
+        Event event = readEvent(backoffWithoutNL, addByteOffset);
+        if (event == null) {
+          break;
+        }
+        events.add(event);
       }
-      events.add(event);
+    } else {
+      while (i < numEvents) {
+        Long posTmp = getLineReadPos();
+        List<byte[]> blockResult = readBlock();
+        if (blockResult == null) {
+          break;
+        }
+        int eventNum = blockResult.size() - 1;
+        for (int j = 0; j < eventNum; j++) {
+          byte[] block = blockResult.get(j);
+          Event event = EventBuilder.withBody(block);
+          events.add(event);
+          posTmp = posTmp + block.length;
+          updateFilePos(posTmp);
+          if (addByteOffset == true) {
+            event.getHeaders().put(BYTE_OFFSET_HEADER_KEY, posTmp.toString());
+          }
+          i++;
+          if (i >= numEvents) {
+            break;
+          }
+        }
+        if (eventNum == 0) {
+          updateFilePos(posTmp);
+          break;
+        }
+      }
     }
     return events;
   }
@@ -169,13 +221,41 @@ public class TailFile {
   }
 
   private void readFile() throws IOException {
-    if ((raf.length() - raf.getFilePointer()) < BUFFER_SIZE) {
+    if ((raf.length() - raf.getFilePointer()) < this.bufferSize) {
       buffer = new byte[(int) (raf.length() - raf.getFilePointer())];
     } else {
-      buffer = new byte[BUFFER_SIZE];
+      buffer = new byte[this.bufferSize];
     }
     raf.read(buffer, 0, buffer.length);
     bufferPos = 0;
+  }
+
+  public List<byte[]> readBlock() throws IOException {
+    List<byte[]> blockResult = null;
+    if (raf.getFilePointer() < raf.length()) {
+      readFile();
+      String blockStr = new String(buffer);
+      blockResult = splitBlockStr(blockStr, this.lineStartRegex);
+    }
+    return blockResult;
+  }
+
+  public List<byte[]> splitBlockStr(String blockStr, String lineStartRegex) {
+    Pattern pattern = Pattern.compile(lineStartRegex);
+    Matcher matcher = pattern.matcher(blockStr);
+    List<byte[]> strList = new ArrayList<>();
+    int pre = 0;
+    int i = 0;
+    while (matcher.find()) {
+      int start = matcher.start();
+      if (start == 0) continue;
+      String subStr = blockStr.substring(pre, start);
+      strList.add(subStr.getBytes());
+      pre = start;
+      i++;
+    }
+    strList.add(blockStr.substring(pre, blockStr.length()).getBytes());
+    return strList;
   }
 
   private byte[] concatByteArrays(byte[] a, int startIdxA, int lenA,
