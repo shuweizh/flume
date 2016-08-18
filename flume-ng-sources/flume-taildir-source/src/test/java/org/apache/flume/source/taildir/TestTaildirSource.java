@@ -409,11 +409,13 @@ public class TestTaildirSource {
     File f1 = new File(tmpDir, "a.log");
     File f2 = new File(tmpDir, "b.log");
     File f3 = new File(tmpDir, "c.log");
-    Files.write("a.log\n\n2016-05-17 00:12:06,713 [Thread-7] TRACE \n f1 \n 2016-05-18 00:12:06,713 [Thread-7] TRACE \n" +
+    Files.write("a.log\n\n2016-05-17 00:12:06,713 [Thread-7] TRACE \n f1 \n" +
+            " 2016-05-18 00:12:06,713 [Thread-7] TRACE \n" +
             " f1 \n" +
             " f1f1", f1, Charsets.UTF_8);
 
-    Files.write(" 2016-05-19 00:12:06,713 [Thread-7] TRACE \n f2 \n f2f2\n2016-05-20 00:12:06,713 [Thread-7] TRACE\n ", f2, Charsets.UTF_8);
+    Files.write(" 2016-05-19 00:12:06,713 [Thread-7] TRACE \n f2 \n f2f2\n" +
+            "2016-05-20 00:12:06,713 [Thread-7] TRACE\n ", f2, Charsets.UTF_8);
     Files.write("c.log\n", f3, Charsets.UTF_8);
 
     Context context = new Context();
@@ -422,7 +424,8 @@ public class TestTaildirSource {
     // Tail a.log and b.log
     context.put(FILE_GROUPS_PREFIX + "f1", tmpDir.getAbsolutePath() + "/[abc].log");
     context.put(MULTILINE, "true");
-    context.put(LINE_START_REGEX, "\\s?\\d\\d\\d\\d-\\d\\d-\\d\\d\\s\\d\\d:\\d\\d:\\d\\d,\\d\\d\\d");
+    context.put(LINE_START_REGEX, "\\s?\\d\\d\\d\\d-\\d\\d-\\d\\d\\s\\d\\d:\\d" +
+            "\\d:\\d\\d,\\d\\d\\d");
 
     Configurables.configure(source, context);
     source.start();
