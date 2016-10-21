@@ -49,6 +49,12 @@ public class KafkaChannelConfiguration {
   public static final String PARSE_AS_FLUME_EVENT = "parseAsFlumeEvent";
   public static final boolean DEFAULT_PARSE_AS_FLUME_EVENT = true;
 
+  public static final String PARTITION_HEADER_NAME = "partitionIdHeader";
+  public static final String STATIC_PARTITION_CONF = "defaultPartitionId";
+
+  public static final String MIGRATE_ZOOKEEPER_OFFSETS = "migrateZookeeperOffsets";
+  public static final boolean DEFAULT_MIGRATE_ZOOKEEPER_OFFSETS = true;
+
   /*** Old Configuration Parameters ****/
   public static final String BROKER_LIST_KEY = "metadata.broker.list";
   public static final String REQUIRED_ACKS_KEY = "request.required.acks";
