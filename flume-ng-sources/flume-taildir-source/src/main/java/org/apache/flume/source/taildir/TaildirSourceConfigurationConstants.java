@@ -78,4 +78,10 @@ public class TaildirSourceConfigurationConstants {
    * of multi lines. */
   public static final String BUFFER_SIZE = "bufferSize";
   public static final int DEFAULT_BUFFER_SIZE = 8192;
+
+  /** ExcludeDays, exclude file that updated excludedays age
+   *
+   */
+  public static final String EXCLUDEDAYS = "excluedDays";
+  public static final int DEFAULT_EXCLUDEDAYS = 15;
 }

@@ -79,6 +79,7 @@ public class TaildirSource extends AbstractSource implements
   private int writePosInitDelay = 5000;
   private int writePosInterval;
   private boolean cachePatternMatching;
+  private int excludeDays;
 
   private List<Long> existingInodes = new CopyOnWriteArrayList<Long>();
   private List<Long> idleInodes = new CopyOnWriteArrayList<Long>();
@@ -106,6 +107,7 @@ public class TaildirSource extends AbstractSource implements
           .multiline(multiline)
           .lineStartRegex(lineStartRegex)
           .bufferSize(bufferSize)
+          .excludeDays(excludeDays)
           .build();
     } catch (IOException e) {
       throw new FlumeException("Error instantiating ReliableTaildirEventReader", e);
@@ -193,6 +195,7 @@ public class TaildirSource extends AbstractSource implements
     multiline = context.getBoolean(MULTILINE, DEFAULT_MULTILINE);
     lineStartRegex = context.getString(LINE_START_REGEX, DEFAULT_LINE_START_REGEX);
     bufferSize = context.getInteger(BUFFER_SIZE, DEFAULT_BUFFER_SIZE);
+    excludeDays = context.getInteger(EXCLUDEDAYS, DEFAULT_EXCLUDEDAYS);
 
     if (sourceCounter == null) {
       sourceCounter = new SourceCounter(getName());

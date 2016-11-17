@@ -62,6 +62,7 @@ public class ReliableTaildirEventReader implements ReliableEventReader {
   private boolean multiline;
   private String lineStartRegex;
   private int bufferSize;
+  private int excludeDays;
 
   /**
    * Create a ReliableTaildirEventReader to watch the given directory.
@@ -70,7 +71,7 @@ public class ReliableTaildirEventReader implements ReliableEventReader {
       Table<String, String, String> headerTable, String positionFilePath,
       boolean skipToEnd, boolean addByteOffset, boolean cachePatternMatching,
       boolean annotateFileName, String fileNameHeader,
-      boolean multiline, String lineStartRegex, int bufferSize) throws IOException {
+      boolean multiline, String lineStartRegex, int bufferSize, int excludeDays) throws IOException {
     // Sanity checks
     Preconditions.checkNotNull(filePaths);
     Preconditions.checkNotNull(positionFilePath);
@@ -82,7 +83,7 @@ public class ReliableTaildirEventReader implements ReliableEventReader {
 
     List<TaildirMatcher> taildirCache = Lists.newArrayList();
     for (Entry<String, String> e : filePaths.entrySet()) {
-      taildirCache.add(new TaildirMatcher(e.getKey(), e.getValue(), cachePatternMatching));
+      taildirCache.add(new TaildirMatcher(e.getKey(), e.getValue(), cachePatternMatching, excludeDays));
     }
     logger.info("taildirCache: " + taildirCache.toString());
     logger.info("headerTable: " + headerTable.toString());
@@ -96,6 +97,7 @@ public class ReliableTaildirEventReader implements ReliableEventReader {
     this.multiline = multiline;
     this.lineStartRegex = lineStartRegex;
     this.bufferSize = bufferSize;
+    this.excludeDays = excludeDays;
     updateTailFiles(skipToEnd);
 
     logger.info("Updating position from position file: " + positionFilePath);
@@ -314,6 +316,7 @@ public class ReliableTaildirEventReader implements ReliableEventReader {
     private boolean multiline;
     private String lineStartRegex;
     private int bufferSize;
+    private int excludeDays;
 
     public Builder filePaths(Map<String, String> filePaths) {
       this.filePaths = filePaths;
@@ -370,12 +373,17 @@ public class ReliableTaildirEventReader implements ReliableEventReader {
       return this;
     }
 
+    public Builder excludeDays(int excludeDays) {
+      this.excludeDays = excludeDays;
+      return this;
+    }
+
 
     public ReliableTaildirEventReader build() throws IOException {
       return new ReliableTaildirEventReader(filePaths, headerTable, positionFilePath, skipToEnd,
                                             addByteOffset, cachePatternMatching,
                                             annotateFileName, fileNameHeader,
-                                            multiline, lineStartRegex, bufferSize);
+                                            multiline, lineStartRegex, bufferSize, excludeDays);
     }
   }
 

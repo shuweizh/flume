@@ -42,6 +42,7 @@ public class TestTaildirMatcher {
   private File tmpDir;
   private Map<String, File> files;
   private boolean isCachingNeeded = true;
+  private int excludeDays = 2;
 
   final String msgAlreadyExistingFile = "a file was not found but it was created before matcher";
   final String msgAfterNewFileCreated = "files which were created after last check are not found";
@@ -107,7 +108,7 @@ public class TestTaildirMatcher {
 
     TaildirMatcher tm = new TaildirMatcher("f1",
                                            tmpDir.getAbsolutePath() + File.separator + "file.*",
-                                           isCachingNeeded);
+                                           isCachingNeeded, excludeDays);
     List<String> files = filesToNames(tm.getMatchingFiles());
     assertEquals(msgAlreadyExistingFile, 2, files.size());
     assertTrue(msgAlreadyExistingFile, files.contains("file1"));
@@ -143,7 +144,7 @@ public class TestTaildirMatcher {
 
     TaildirMatcher tm = new TaildirMatcher("f1",
             tmpDir.getAbsolutePath() + File.separator + "*/innerFile.*",
-            isCachingNeeded);
+            isCachingNeeded, excludeDays);
     List<String> files = filesToNames(tm.getMatchingFiles());
 
     //Config cachePatternMatching is forced set to be false when fileGroup has globs in directory
@@ -166,7 +167,7 @@ public class TestTaildirMatcher {
 
     TaildirMatcher tm = new TaildirMatcher("f1",
                                            tmpDir.getAbsolutePath() + File.separator + "file.*",
-                                           false);
+                                           false, excludeDays);
     List<String> files = filesToNames(tm.getMatchingFiles());
     assertEquals(msgAlreadyExistingFile, 2, files.size());
     assertTrue(msgAlreadyExistingFile, files.contains("file1"));
@@ -199,7 +200,7 @@ public class TestTaildirMatcher {
   public void testEmtpyDirMatching() throws Exception {
     TaildirMatcher tm = new TaildirMatcher("empty",
                                            tmpDir.getAbsolutePath() + File.separator + ".*",
-                                           isCachingNeeded);
+                                           isCachingNeeded, excludeDays);
     List<File> files = tm.getMatchingFiles();
     assertNotNull(msgEmptyDir, files);
     assertTrue(msgEmptyDir, files.isEmpty());
@@ -210,7 +211,7 @@ public class TestTaildirMatcher {
     TaildirMatcher tm = new TaildirMatcher(
         "nomatch",
         tmpDir.getAbsolutePath() + File.separator + "abracadabra_nonexisting",
-        isCachingNeeded);
+        isCachingNeeded, excludeDays);
     List<File> files = tm.getMatchingFiles();
     assertNotNull(msgNoMatch, files);
     assertTrue(msgNoMatch, files.isEmpty());
@@ -219,7 +220,7 @@ public class TestTaildirMatcher {
   @Test(expected = IllegalStateException.class)
   public void testNonExistingDir() {
     TaildirMatcher tm = new TaildirMatcher("exception", "/abracadabra/doesntexist/.*",
-                                           isCachingNeeded);
+                                           isCachingNeeded, excludeDays);
   }
 
   @Test
@@ -228,7 +229,7 @@ public class TestTaildirMatcher {
     new File(tmpDir, "recursiveDir").mkdir();
     new File(tmpDir + File.separator + "recursiveDir", "innerFile").createNewFile();
     TaildirMatcher tm = new TaildirMatcher("f1", tmpDir.getAbsolutePath() + File.separator + ".*",
-                                           isCachingNeeded);
+                                           isCachingNeeded, excludeDays);
     List<String> files = filesToNames(tm.getMatchingFiles());
 
     assertEquals(msgSubDirs, 1, files.size());
@@ -246,11 +247,11 @@ public class TestTaildirMatcher {
     // Tail a.log and b.log
     TaildirMatcher tm1 = new TaildirMatcher("ab",
                                             tmpDir.getAbsolutePath() + File.separator + "[ab].log",
-                                            isCachingNeeded);
+                                            isCachingNeeded, excludeDays);
     // Tail files that starts with c.log
     TaildirMatcher tm2 = new TaildirMatcher("c",
                                             tmpDir.getAbsolutePath() + File.separator + "c.log.*",
-                                            isCachingNeeded);
+                                            isCachingNeeded, excludeDays);
 
     List<String> files1 = filesToNames(tm1.getMatchingFiles());
     List<String> files2 = filesToNames(tm2.getMatchingFiles());
@@ -273,7 +274,7 @@ public class TestTaildirMatcher {
   @Test
   public void trimPathBeforeFirstWildcard() {
     TaildirMatcher tm = new TaildirMatcher("fg", tmpDir.getAbsolutePath() + File.separator + ".*",
-            isCachingNeeded);
+            isCachingNeeded, excludeDays);
 
     String parentPath0 = "/dir/subdira/subdirb/subdirc";
     String trimParentPath0 = tm.trimPathBeforeFirstWildcard(parentPath0);

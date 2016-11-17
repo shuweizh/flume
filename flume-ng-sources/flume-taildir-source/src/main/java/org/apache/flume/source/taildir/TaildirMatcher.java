@@ -80,6 +80,8 @@ public class TaildirMatcher {
   private final String fileGroup;
   // plain string of the desired files from configuration
   private final String filePattern;
+  // exclude some days ago from configuration
+  private final int excludeDays;
 
   // directory monitored for changes
   private final File parentDir;
@@ -114,10 +116,11 @@ public class TaildirMatcher {
    *                             for stamping mtime (eg: remote filesystems)
    * @see TaildirSourceConfigurationConstants
    */
-  TaildirMatcher(String fileGroup, String filePattern, boolean cachePatternMatching) {
+  TaildirMatcher(String fileGroup, String filePattern, boolean cachePatternMatching, int excludeDays) {
     // store whatever came from configuration
     this.fileGroup = fileGroup;
     this.filePattern = filePattern;
+    this.excludeDays = excludeDays;
 
     // calculate final members
     File f = new File(filePattern);
@@ -222,7 +225,13 @@ public class TaildirMatcher {
         @Override
         public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
           if (dirMatcher.matches(file.getParent()) && fileNameMatcher.matches(file.getFileName())) {
-            result.add(file.toFile());
+            File tmpFile = file.toFile();
+            // exclude file before excludeDays
+            if (tmpFile.lastModified() + excludeDays * 86400000 > System.currentTimeMillis()) {
+              result.add(file.toFile());
+            }else {
+              logger.info("Exclude days before [" + excludeDays + "]:" + file);
+            }
           }
           return FileVisitResult.CONTINUE;
         }
@@ -299,7 +308,8 @@ public class TaildirMatcher {
     return "{" +
         "filegroup='" + fileGroup + '\'' +
         ", filePattern='" + filePattern + '\'' +
-        ", cached=" + cachePatternMatching +
+        ", cached=" + cachePatternMatching +  '\'' +
+        ", excludeDays=" + excludeDays +
         '}';
   }
 
