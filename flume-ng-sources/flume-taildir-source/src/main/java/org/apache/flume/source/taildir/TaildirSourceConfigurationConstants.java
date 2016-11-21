@@ -82,6 +82,6 @@ public class TaildirSourceConfigurationConstants {
   /** ExcludeDays, exclude file that updated excludedays age
    *
    */
-  public static final String EXCLUDEDAYS = "excluedDays";
+  public static final String EXCLUDEDAYS = "excludeDays";
   public static final int DEFAULT_EXCLUDEDAYS = 15;
 }

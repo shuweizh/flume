@@ -196,6 +196,7 @@ public class TaildirSource extends AbstractSource implements
     lineStartRegex = context.getString(LINE_START_REGEX, DEFAULT_LINE_START_REGEX);
     bufferSize = context.getInteger(BUFFER_SIZE, DEFAULT_BUFFER_SIZE);
     excludeDays = context.getInteger(EXCLUDEDAYS, DEFAULT_EXCLUDEDAYS);
+      logger.info("excludeDays:" + excludeDays);
 
     if (sourceCounter == null) {
       sourceCounter = new SourceCounter(getName());

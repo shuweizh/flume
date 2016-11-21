@@ -228,12 +228,20 @@ public class TaildirMatcher {
             File tmpFile = file.toFile();
             // exclude file before excludeDays
             if (tmpFile.lastModified() + excludeDays * 86400000 > System.currentTimeMillis()) {
+              // add log
+              logger.info(file + " " + tmpFile.lastModified() + " " + excludeDays + " " + System.currentTimeMillis());
               result.add(file.toFile());
             }else {
-              logger.info("Exclude days before [" + excludeDays + "]:" + file);
+                logger.info("Exclude days before [" + excludeDays + "]:" + file);
+                logger.info(file + " " + tmpFile.lastModified() + " " + excludeDays + " " + System.currentTimeMillis());
             }
           }
           return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs){
+            return FileVisitResult.CONTINUE;
         }
 
         @Override
