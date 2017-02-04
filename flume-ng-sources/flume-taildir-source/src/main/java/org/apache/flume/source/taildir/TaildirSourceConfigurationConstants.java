@@ -83,5 +83,5 @@ public class TaildirSourceConfigurationConstants {
    *
    */
   public static final String EXCLUDEDAYS = "excludeDays";
-  public static final int DEFAULT_EXCLUDEDAYS = 15;
+  public static final int DEFAULT_EXCLUDEDAYS = 0;
 }

@@ -177,7 +177,7 @@ public class TailFile {
         if (blockResult == null) {
           break;
         }
-        int eventNum = blockResult.size() - 1;
+        int eventNum = blockResult.size();
         for (int j = 0; j < eventNum; j++) {
           byte[] block = blockResult.get(j);
           Event event = EventBuilder.withBody(block);
